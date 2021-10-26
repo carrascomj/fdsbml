@@ -1,11 +1,9 @@
 use argh::FromArgs;
 use libflate::gzip;
+use rust_sbml::Model;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-
-mod base_types;
-use base_types::ModelRaw;
 
 #[derive(FromArgs)]
 /// Print a human friendly summary of the Reactions and Metabolites of a SBML
@@ -60,11 +58,12 @@ fn main() {
     }
     let color = get_color_choice(args.color.as_str());
     let mut stdout = StandardStream::stdout(color);
-    match ModelRaw::parse(&file_str) {
+    match Model::parse(&file_str) {
         Ok(mut model) => {
             // Each reaction is formatted to (with colors):
             //     (Reaction) id: [reactants] -> [products] (name)
-            model.list_of_reactions.reactions.iter_mut().for_each(|reac| {
+            let params = &model.parameters;
+            model.reactions.iter_mut().for_each(|(id, reac)| {
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Ansi256(243))))
                     .unwrap();
@@ -72,29 +71,49 @@ fn main() {
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Red)))
                     .unwrap();
-                write!(&mut stdout, " {}", reac.id).unwrap();
+                write!(&mut stdout, " {}", id).unwrap();
                 stdout.reset().unwrap();
                 write!(
                     &mut stdout,
-                    ": {:?} -> {:?} ({}<{})",
+                    ": {} -> {} ({}<{})",
                     reac.list_of_reactants
                         .species_references
                         .iter_mut()
-                        .map(|sp| std::mem::take(&mut sp.species))
-                        .collect::<Vec<_>>(),
+                        .map(|sp| {
+                            let species = std::mem::take(&mut sp.species);
+                            match sp.stoichiometry {
+                                None => species,
+                                Some(x) => match x as u8 {
+                                    1 => species,
+                                    _ => format!("{} {}", x, species),
+                                },
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" + "),
                     reac.list_of_products
                         .species_references
                         .iter_mut()
-                        .map(|sp| std::mem::take(&mut sp.species))
-                        .collect::<Vec<_>>(),
-                    &reac
-                        .lower_bound
-                        .as_deref()
-                        .map_or("-1000", |mut sp| std::mem::take(&mut sp)),
-                    &reac
-                        .upper_bound
-                        .as_deref()
-                        .map_or("1000", |mut sp| std::mem::take(&mut sp)),
+                        .map(|sp| {
+                            let species = std::mem::take(&mut sp.species);
+                            match sp.stoichiometry {
+                                None => species,
+                                Some(x) => match x as u8 {
+                                    1 => species,
+                                    _ => format!("{} {}", x, species),
+                                },
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" + "),
+                    match &reac.lower_bound {
+                        Some(s) => params[s].value.unwrap(),
+                        _ => -1000.,
+                    },
+                    match &reac.upper_bound {
+                        Some(s) => params[s].value.unwrap(),
+                        _ => 1000.,
+                    },
                 )
                 .unwrap();
                 stdout
@@ -108,7 +127,7 @@ fn main() {
 
             // Each species is formatted to (with colors):
             //     (Species) species.id: species.compartment (species.name)
-            model.list_of_species.species.iter().for_each(|met| {
+            model.species.iter().for_each(|(id, met)| {
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Ansi256(243))))
                     .unwrap();
@@ -116,7 +135,7 @@ fn main() {
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Blue)))
                     .unwrap();
-                write!(&mut stdout, " {}", met.id).unwrap();
+                write!(&mut stdout, " {}", id).unwrap();
                 stdout.reset().unwrap();
                 write!(&mut stdout, ": {}", met.compartment).unwrap();
                 stdout

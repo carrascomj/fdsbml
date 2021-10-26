@@ -68,8 +68,7 @@ dependencies = [
  "argh",
  "atty",
  "libflate",
- "quick-xml",
- "serde",
+ "rust_sbml",
  "termcolor",
 ]
 
@@ -156,6 +155,16 @@ name = "rle-decode-fast"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
+
+[[package]]
+name = "rust_sbml"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2217a5e700941c8c08d0bccec6833e8a418558c89929ade4876a6bc363901a40"
+dependencies = [
+ "quick-xml",
+ "serde",
+]
 
 [[package]]
 name = "serde"
